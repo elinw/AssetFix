@@ -1,7 +1,8 @@
 AssetFix
 ========
 
-Application for fixing assets
+Application for fixing assets currently for 2.5 only. To use for JCMS 3 comment out the line for categories rebuilding and do 
+the rebuild in your category manager.
 
 Place the application in your joomla root and then browse to it.
 
