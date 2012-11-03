@@ -28,6 +28,8 @@ require JPATH_BASE . '/libraries/import.php';
 // Import the JApplicationWeb class from the platform.
 jimport('joomla.application.web');
 
+// Categories is in legacy for CMS 3 so we have to check there.
+JLoader::registerPrefix('J', JPATH_PLATFORM . '/legacy');
 /**
  * This class checks some common situations that occur when the asset table is corrupted.
  */
