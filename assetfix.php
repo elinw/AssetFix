@@ -28,16 +28,20 @@ require JPATH_BASE . '/libraries/import.php';
 
 
 // Import the JApplicationWeb class from the platform.
-jimport('joomla.application.web');
-
+//JLoader::import('joomla.application.web');
+JLoader::import('cms.helper.tags');
+JLoader::import('cms.table.corecontent');
+JLoader::import('joomla.observer.mapper');
 // Categories is in legacy for CMS 3 so we have to check there.
 JLoader::registerPrefix('J', JPATH_PLATFORM . '/legacy');
+JLoader::Register('J', JPATH_PLATFORM . '/cms');
 /**
  * This class checks some common situations that occur when the asset table is corrupted.
  */
 // Instantiate the application.
 class Assetfix extends JApplicationWeb
 {
+
 	/**
 	 * Overrides the parent doExecute method to run the web application.
 	 *
@@ -88,7 +92,9 @@ class Assetfix extends JApplicationWeb
 			->appendBody('<body style="font-family:verdana; margin-left: 30px; width: 500px;">');
 
 		$this->appendBody('<h1>Asset Fix</h1>
-		<p>This is an unofficial way of fixing the asset table for categories and articles</p>');
+			<p>This is an unofficial way of fixing the asset table for extensions, categories and articles</p>
+			<p>It attempts to fix some of the reported issues in asset tables, but is not guaranteed to fix everything</p>'
+		);
 
 			$this->_db = JFactory::getDBO();
 
@@ -135,57 +141,124 @@ class Assetfix extends JApplicationWeb
 					if ($asset && ($asset->parent_id !=  $rootId || $asset->level != 1))
 					{
 						self::fixExtensionAsset($asset,$rootId);
+						$this->appendBody('<p>This asset for this extension was fixed: ' . $component->name . '</p>');
 					}
 					elseif (!$asset)
 					{
-						$this->appendBody('<p>This extenion is missing an asset</p>' . $asset->name);
+						$this->appendBody('<p>This extension is missing an asset: ' . $component->name . '</p>');
 					}
 				}
 
-			// Let's rebuild the categories tree
-			JTable::getInstance('Category')->rebuild();
+				// Let's rebuild the categories tree
+				JTable::getInstance('Category')->rebuild();
 
-			$this->appendBody('<p>Categories finished.</p>');
-
-			// Now we will start work on the articles
-			$query = $this->_db->getQuery(true);
-			$query->select('id, asset_id');
-			$query->from('#__content');
-			$this->_db->setQuery($query);
-			$articles = $this->dbo->loadObjectList();
-
-			foreach ($articles as $article)
-			{
-				$asset->id = 0;
-				$asset->reset();
+				// Although we have rebuilt it may not have fully worked. Let's do some extra checks.
+				$asset = JTable::getInstance('Asset');
 				
-				// We're going to load the articles by asset name.
-				if ($article->id > 0)
+				$assetTree = $asset->getTree(1);
+
+				// Get all the categories as objects
+				$queryc = $this->_db->getQuery(true);
+				$queryc->select('id, asset_id, parent_id');
+				$queryc->from('#__categories');
+				$this->_db->setQuery($queryc);
+				$categories = $this->dbo->loadObjectList();
+
+				// Create an array of just level 1 assets that look like the are extensons. 
+
+				$extensionAssets = array();
+
+				foreach ($assetTree as $aid => $assetData)
 				{
-					$asset->loadByName('com_content.article.' . (int) $article->id);
-					$query = $this->_db->getQuery(true);
-					$query->update($this->_db->quoteName('#__content'));
-					$query->set($this->_db->quoteName('asset_id') . ' = ' . (int) $asset->id);
-					$query->where('id = ' . (int) $article->id);
-					$this->dbo->setQuery($query);
-					$this->dbo->query();
+						// Now we will make a list of components based on the assets table not the extensions table.
+						if (substr($assetData->name, 0, 4) === 'com_' && $assetData->level ==1)
+						{
+								$extensionAssets[$assetData->title] = $assetData->id;
+						}
 				}
 
-				// 
-				if ($article->asset_id == 0)
+				foreach ($assetTree as $assetData)
 				{
-					$article->asset_id = '';
+					// Assume the root asset is valid.
+					if ($assetData->name != 'root.1')
+					{
+						// There have been some reports of misnamed contact assets.
+						if (strpos($assetData->name, 'contact_details') != false)
+						{
+							str_replace($assetData->name, 'contact_details', 'contact');
+						}
+
+						// Now handle categories with parent_id of 0 or 1
+						if (strpos($assetData->name, 'category') != false)
+						{
+							$catFixCount = 0;
+							$fixedCats = array();
+							// Just assume that they are top level categories.
+							// We are also goingto fix parent_id of 1 since some people in the forums did this to temporarily
+							// fix a problem and also categories should never have a parent_id of 1.
+							if ($assetData->parent_id == 0 || $assetData->parent_id == 1)
+							{
+								$catFixCount += 1;
+								$explodeAssetName = explode('.', $assetData->name);
+								$assetData->parent_id = $extensionAssets[$explodeAssetName[0]];
+								$fixedCats[] = $assetData->id;
+	
+								$asset->load($assetData->id);
+								// For categories the ultimate parent is the extension
+								$asset->parent_id = $extensionAssets[$explodeAssetName[0]];
+								$asset->store();
+								$asset->reset();
+
+								$this->appendBody('<p>The assets for the following category was fixed:' . $assetData->name . ' You will want to
+								check the category manager to make sure any nesting you require is in place.');
+							}
+						}
+					}
 				}
-				$contenttable->load($article->id);
-				$contenttable->store();
+
+				// Rebuild again as a final check to clear up any newly created inconsistencies.
+                JTable::getInstance('Category')->rebuild();
+				$this->appendBody('<p>Categories were successfully finished.</p>');
+
+				// Now we will start work on the articles
+				$query = $this->_db->getQuery(true);
+				$query->select('id, asset_id');
+				$query->from('#__content');
+				$this->_db->setQuery($query);
+				$articles = $this->dbo->loadObjectList();
+
+				foreach ($articles as $article)
+				{
+					$asset->id = 0;
+					$asset->reset();
+					
+					// We're going to load the articles by asset name.
+					if ($article->id > 0)
+					{
+						$asset->loadByName('com_content.article.' . (int) $article->id);
+						$query = $this->_db->getQuery(true);
+						$query->update($this->_db->quoteName('#__content'));
+						$query->set($this->_db->quoteName('asset_id') . ' = ' . (int) $asset->id);
+						$query->where('id = ' . (int) $article->id);
+						$this->dbo->setQuery($query);
+						$this->dbo->query();
+					}
+
+					//  JTableAssets can clean an empty value for asset_id but not a 0 value. 
+					if ($article->asset_id == 0)
+					{
+						$article->asset_id = '';
+					}
+					$contenttable->load($article->id);
+					$contenttable->store();
+				}
+
+				$this->appendBody('<p>Article assets successfully finished.</p>');
+
+			$this->appendBody('</li>');
+			$this->appendBody('</li>
+			</ul>');
 			}
-
-			$this->appendBody('<p>Article assets finished.</p>');
-
-		$this->appendBody('</li>');
-		$this->appendBody('</li>
-		</ul>');
-		}
 
 		// Finish up the HTML response.
 		$this->appendBody('</body>')
@@ -208,7 +281,17 @@ class Assetfix extends JApplicationWeb
 		return;
 	}
 
-	protected function fixExtensionAsset($asset, $rootId)
+	/**
+	 * Fix the asset record for extensions
+	 * 
+	 * @param  JTableAsset  $asset   The asset table object
+	 * @param   integer     $rootId  The primary key value for the root id, usually 1.
+	 *
+	 * @return  mixed  The primary id of the root row, or false if not found and the internal error is set.
+	 *
+	 * @since   11.1
+	 */
+	protected function fixExtensionAsset($asset, $rootId = 1)
 	{
 		// Set up the proper nested values for an extension
 		$querye = $this->_db->getQuery(true);
@@ -216,7 +299,7 @@ class Assetfix extends JApplicationWeb
 		$querye->set($this->_db->quoteName('parent_id') . ' =  ' . $rootId )
 			->set($this->_db->quoteName('level') . ' = 1 ' );
 		$querye->where('name = ' . $this->_db->quote($asset->name));
-		$this->dbo->setQuery($querye); var_dump($querye->set);
+		$this->dbo->setQuery($querye);
 		$this->dbo->query();
 
 		return;
