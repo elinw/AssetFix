@@ -28,13 +28,22 @@ require JPATH_BASE . '/libraries/import.php';
 
 
 // Import the JApplicationWeb class from the platform.
-//JLoader::import('joomla.application.web');
-JLoader::import('cms.helper.tags');
-JLoader::import('cms.table.corecontent');
-JLoader::import('joomla.observer.mapper');
-// Categories is in legacy for CMS 3 so we have to check there.
-JLoader::registerPrefix('J', JPATH_PLATFORM . '/legacy');
-JLoader::Register('J', JPATH_PLATFORM . '/cms');
+// IS_MAC is not defined in the CMS 3 version of the platform.
+if (!defined('IS_MAC'))
+{
+	define('JPATH_LIBRARIES', JPATH_PLATFORM);
+	require JPATH_BASE . '/libraries/import.legacy.php';
+	require JPATH_BASE . '/libraries/cms.php';
+
+	// Import the JApplicationWeb class from the platform.
+	JLoader::import('joomla.application.web');
+	JLoader::import('cms.helper.tags');
+	JLoader::import('cms.table.corecontent');
+	JLoader::import('joomla.observer.mapper');
+	// Categories is in legacy for CMS 3 so we have to check there.
+	JLoader::registerPrefix('J', JPATH_PLATFORM . '/legacy');
+	JLoader::Register('J', JPATH_PLATFORM . '/cms');
+}
 /**
  * This class checks some common situations that occur when the asset table is corrupted.
  */
