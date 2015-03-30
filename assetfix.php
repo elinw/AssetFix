@@ -22,6 +22,7 @@ define('_JEXEC', 1);
 define('JPATH_BASE', dirname(__FILE__));
 define('JPATH_SITE', JPATH_BASE);
 define('JPATH_CONFIGURATION',JPATH_BASE);
+define('JPATH_CACHE',JPATH_BASE . '/cache');
 
 // Bootstrap the application.
 require JPATH_BASE . '/libraries/import.php';
