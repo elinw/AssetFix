@@ -106,7 +106,7 @@ class Assetfix extends JApplicationWeb
 			<p>It attempts to fix some of the reported issues in asset tables, but is not guaranteed to fix everything</p>'
 		);
 
-			$this->_db = JFactory::getDBO();
+			$this->_db = JFactory::getDbo();
 
 			$contenttable =  JTable::getInstance('Content');
 			$asset = JTable::getInstance('Asset');
@@ -251,7 +251,7 @@ class Assetfix extends JApplicationWeb
 						$query->set($this->_db->quoteName('asset_id') . ' = ' . (int) $asset->id);
 						$query->where('id = ' . (int) $article->id);
 						$this->dbo->setQuery($query);
-						$this->dbo->query();
+						$this->dbo->execute();
 					}
 
 					//  JTableAssets can clean an empty value for asset_id but not a 0 value. 
@@ -286,7 +286,7 @@ class Assetfix extends JApplicationWeb
 			->set($this->_db->quoteName('name') . ' = ' . $this->_db->quote('root.' . (int) $rootId));
 		$queryr->where('id = ' . (int) $rootId);
 		$this->dbo->setQuery($queryr);
-		$this->dbo->query();
+		$this->dbo->execute();
 
 		return;
 	}
@@ -310,7 +310,7 @@ class Assetfix extends JApplicationWeb
 			->set($this->_db->quoteName('level') . ' = 1 ' );
 		$querye->where('name = ' . $this->_db->quote($asset->name));
 		$this->dbo->setQuery($querye);
-		$this->dbo->query();
+		$this->dbo->execute();
 
 		return;
 	}
