@@ -86,6 +86,9 @@ class Assetfix extends JApplicationWeb
 			)
 		);
 
+		// Registering app class to JFactory::$application is essential. At least for joomla 3.3.1
+		// Without registering JTable::store() throws "Application instantiation error"
+		JFactory::$application = $this;
 	}
 
 	protected function doExecute()
